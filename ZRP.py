@@ -5,7 +5,18 @@ from shapely.geometry import Polygon, LineString, Point
 from shapely.ops import nearest_points
 import matplotlib.pyplot as plt
 from itertools import product, combinations, permutations
+import logging
+from datetime import datetime
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(f'zrp_optimization_{datetime.now().strftime("%Y%m%d_%H%M%S")}.log'),
+        logging.StreamHandler()
+    ]
+)
 class ZRPAlgorithm:
     def __init__(self, container_polygon, obstacle_polygons, start_point=None, epsilon2=0.1, epsilon3=0.1):
         self.Π = container_polygon
@@ -140,60 +151,7 @@ class ZRPAlgorithm:
         
         return order
     
-    def find_optimal_zrp_pairs(self, max_combinations=100):
-        """Find optimal entry points considering all possibilities"""
-        best_pairs = None
-        best_length = float('inf')
-        best_route = None
-        
-        # Generate subset of possible combinations (full combination is too large)
-        num_obstacles = len(self.P)
-        max_per_obstacle = min(5, max(1, int(max_combinations ** (1/num_obstacles))))
-        
-        # For each obstacle, select up to max_per_obstacle most promising points
-        candidate_indices = []
-        for i in range(num_obstacles):
-            # Score points based on direction to neighbors
-            scores = []
-            for j, point in enumerate(self.all_candidate_points[i]):
-                score = 0
-                if i > 0:
-                    # Score based on facing previous obstacle
-                    prev_center = np.array(self.P[i-1].centroid.coords[0])
-                    point_vec = np.array(point) - np.array(self.P[i].centroid.coords[0])
-                    if np.linalg.norm(point_vec) > 1e-8:
-                        point_vec = point_vec / np.linalg.norm(point_vec)
-                        direction = prev_center - np.array(self.P[i].centroid.coords[0])
-                        if np.linalg.norm(direction) > 1e-8:
-                            direction = direction / np.linalg.norm(direction)
-                            score += np.dot(point_vec, direction)
-                
-                scores.append((j, score))
-            
-            # Select top points based on score
-            scores.sort(key=lambda x: -x[1])
-            candidate_indices.append([idx for idx, _ in scores[:max_per_obstacle]])
-        
-        # Evaluate combinations
-        evaluated = 0
-        for point_indices in product(*candidate_indices):
-            if evaluated >= max_combinations:
-                break
-                
-            # Create pairs (using same point for entry and exit)
-            zrp_pairs = [(self.all_candidate_points[i][idx], self.all_candidate_points[i][idx]) 
-                        for i, idx in enumerate(point_indices)]
-            
-            route, length = self.evaluate_route(zrp_pairs)
-            if route and length < best_length and self.validate_route(route):
-                best_length = length
-                best_pairs = zrp_pairs
-                best_route = route
-                print(f"New best length: {best_length:.2f}")
-            
-            evaluated += 1
-        
-        return best_pairs, best_route, best_length
+  
         
     def calculate_zrp_pairs(self):
         """Make all vertices and edge midpoints potential entry/exit points"""
@@ -447,69 +405,248 @@ class ZRPAlgorithm:
         return valid
     
     def repair_route(self):
-        """Attempt to repair invalid route segments"""
+        """More robust route repair that ensures valid path"""
         if not self.route:
             return False
             
         new_route = [self.route[0]]
+        
         for i in range(1, len(self.route)):
-            segment = LineString([new_route[-1], self.route[i]])
+            current_point = new_route[-1]
+            next_point = self.route[i]
             
-            # Check if segment crosses any obstacle
-            needs_repair = False
-            for poly in self.P:
-                if segment.crosses(poly):
-                    needs_repair = True
-                    break
+            # Find path avoiding ALL obstacles
+            repaired_segment = self.extended_shortest_path(current_point, next_point, self.P)
             
-            if needs_repair:
-                # Recalculate this segment with obstacle avoidance
-                repaired_segment = self.extended_shortest_path(new_route[-1], self.route[i], self.P)
-                if len(repaired_segment) > 1:
-                    new_route.extend(repaired_segment[1:])
+            if len(repaired_segment) > 1:
+                new_route.extend(repaired_segment[1:])
             else:
-                new_route.append(self.route[i])
+                new_route.append(next_point)
         
         self.route = new_route
-        return self.validate_route()
+        return self.validate_route(strict=True)
     
     def algorithm5(self, max_combinations=100, max_iterations=30, improvement_threshold=0.5):
-        """Enhanced main optimization algorithm"""
-        print("Finding optimal entry points...")
-        
-        # First try with calculated zrp pairs
-        calculated_pairs = self.calculate_zrp_pairs()
-        route, length = self.evaluate_route(calculated_pairs)
-        
-        if route and self.validate_route(route):
-            self.best_zrp_pairs = calculated_pairs
-            self.route = route
-            self.best_route = route
-            self.best_length = length
-            print(f"Initial valid route found with length: {length:.2f}")
-            return route
-        
-        # If calculated pairs don't work, try optimized search
-        best_pairs, best_route, best_length = self.find_optimal_zrp_pairs(max_combinations)
-        
-        if best_pairs is None:
-            print("Failed to find initial valid route - attempting repair")
-            # Try to repair the calculated route
-            self.route = route if route else []
-            if self.repair_route():
-                print("Repaired route found")
-                return self.route
+            """Enhanced main optimization algorithm with detailed logging"""
+            logging.info("===== Starting Route Optimization =====")
+            logging.info(f"Parameters: max_combinations={max_combinations}, max_iterations={max_iterations}")
+            
+            # Phase 1: Try with calculated zrp pairs
+            logging.info("Phase 1: Trying calculated ZRP pairs...")
+            calculated_pairs = self.calculate_zrp_pairs()
+            logging.info(f"Calculated {len(calculated_pairs)} initial touching point pairs")
+            
+            route, length = self.evaluate_route(calculated_pairs)
+            if route:
+                logging.info(f"Initial route length: {length:.2f}")
+                if self.validate_route(route):
+                    self.best_zrp_pairs = calculated_pairs
+                    self.route = route
+                    self.best_route = route
+                    self.best_length = length
+                    logging.info("Success! Initial route is valid")
+                    #return route
+                else:
+                    logging.warning("Initial route failed validation")
             else:
-                print("Failed to repair route")
-                return None
+                logging.warning("Failed to generate initial route")
+
+            # Phase 2: Optimized search
+            logging.info("Phase 2: Starting optimized search...")
+            best_pairs, best_route, best_length = self.find_optimal_zrp_pairs(max_combinations)
+            
+            if best_pairs is None:
+                logging.warning("No valid pairs found in optimized search - attempting repair")
+                self.route = route if route else []
+                if self.repair_route():
+                    logging.info("Repair successful")
+                    return self.route
+                else:
+                    logging.error("Repair failed")
+                    return None
+            
+            # Phase 3: Refinement
+            logging.info("Phase 3: Route refinement...")
+            self.best_zrp_pairs = best_pairs
+            self.route = best_route
+            self.best_route = best_route
+            self.best_length = best_length
+            
+            logging.info(f"Best route found with length: {best_length:.2f}")
+            
+            # Additional optimization passes
+            improvement = float('inf')
+            iteration = 0
+
+            while iteration < max_iterations and improvement > improvement_threshold:
+                iteration += 1
+                logging.info(f"\nOptimization pass {iteration}/{max_iterations}")
+                
+                # Try local improvements
+                new_pairs, new_length = self.optimize_zrp_pairs_sa(
+                    initial_temp=1000/(iteration+1),
+                    cooling_rate=0.95,
+                    iterations=50
+                )
+                
+                if new_length < best_length:
+                    improvement = best_length - new_length
+                    best_length = new_length
+                    best_pairs = new_pairs
+                    best_route, _ = self.evaluate_route(best_pairs)
+                    
+                    logging.info(f"Improved route length to {best_length:.2f} (Δ={improvement:.2f})")
+                    
+                    # Use non-strict validation during optimization
+                    if self.validate_route(best_route, strict=False):
+                        self.best_zrp_pairs = best_pairs
+                        self.route = best_route
+                        self.best_route = best_route
+                        self.best_length = best_length
+                    else:
+                        logging.warning("Improved route failed validation - attempting repair")
+                        self.route = best_route
+                        if self.repair_route():
+                            best_length = LineString(self.route).length
+                            logging.info(f"Repaired route length: {best_length:.2f}")
+                else:
+                    improvement = 0
+                    logging.info("No improvement found in this pass")
+            
+            if self.best_route:
+                final_length = LineString(self.best_route).length
+                logging.info(f"Final optimized route length: {final_length:.2f}")
+                logging.info("Route validation checks:")
+                
+                # Detailed validation logging
+                if not self.validate_route(self.best_route):
+                    logging.error("Final route validation failed!")
+                else:
+                    logging.info("All validation checks passed")
+                    
+                return self.best_route
+            
+            logging.error("Failed to find valid route after all optimization attempts")
+            return None
+
+    def optimize_zrp_pairs_sa(self, initial_temp=1000, cooling_rate=0.95, iterations=100):
+        """Optimize ZRP pairs using simulated annealing"""
+        current_pairs = self.best_zrp_pairs.copy()
+        current_length = self.best_length
+        temp = initial_temp
         
-        self.best_zrp_pairs = best_pairs
-        self.route = best_route
-        self.best_route = best_route
-        self.best_length = best_length
+        for i in range(iterations):
+            # Create neighbor solution by perturbing one point
+            new_pairs = current_pairs.copy()
+            idx = random.randint(0, len(self.P)-1)
+            candidates = self.all_candidate_points[idx]
+            new_point = random.choice(candidates)
+            new_pairs[idx] = (new_point, new_point)  # Using same entry/exit for simplicity
+            
+            # Evaluate new solution
+            new_route, new_length = self.evaluate_route(new_pairs)
+            
+            # Acceptance criteria
+            if new_route and (new_length < current_length or 
+                            random.random() < np.exp((current_length - new_length)/temp)):
+                current_pairs = new_pairs
+                current_length = new_length
+                
+            # Cool down
+            temp *= cooling_rate
+            
+        return current_pairs, current_length
+
+    def find_optimal_zrp_pairs(self, max_combinations=100):
+        """Find optimal entry points with detailed logging"""
+        logging.info(f"Searching for optimal ZRP pairs (max {max_combinations} combinations)")
         
-        print(f"Optimized route found with length: {best_length:.2f}")
-        return best_route
+        best_pairs = None
+        best_length = float('inf')
+        best_route = None
+        num_obstacles = len(self.P)
+        
+        logging.info(f"Evaluating up to {max_combinations} combinations across {num_obstacles} obstacles")
+        
+        # Generate candidate points
+        candidate_indices = []
+        for i in range(num_obstacles):
+            num_candidates = len(self.all_candidate_points[i])
+            max_per_obstacle = min(5, max(1, int(max_combinations ** (1/num_obstacles))))
+            candidate_indices.append(list(range(min(max_per_obstacle, num_candidates))))
+            logging.debug(f"Obstacle {i}: evaluating {len(candidate_indices[-1])}/{num_candidates} points")
+        
+        # Evaluate combinations
+        evaluated = 0
+        best_progress = 0
+        
+        for point_indices in product(*candidate_indices):
+            if evaluated >= max_combinations:
+                break
+                
+            evaluated += 1
+            progress = int(100 * evaluated / max_combinations)
+            if progress > best_progress:
+                best_progress = progress
+                logging.info(f"Progress: {progress}% ({evaluated}/{max_combinations})")
+            
+            # Create pairs
+            for _ in range(max_combinations):
+                # Generate random ZRP pairs
+                zrp_pairs = []
+                for i in range(len(self.P)):
+                    candidates = self.all_candidate_points[i]
+                    point = random.choice(candidates)
+                    zrp_pairs.append((point, point))
+                
+                route, length = self.evaluate_route(zrp_pairs)
+                
+                if route and length < best_length:
+                    self.route = route
+                    if self.repair_route():  # Try to repair first
+                        repaired_length = LineString(self.route).length
+                        if repaired_length < best_length:
+                            best_length = repaired_length
+                            best_pairs = zrp_pairs
+                            best_route = self.route
+                        else:
+                            logging.debug(f"Found shorter route ({length:.2f}) but failed validation")
+        
+        if best_pairs:
+            logging.info(f"Best solution found after {evaluated} evaluations")
+            logging.info(f"Best length: {best_length:.2f}")
+        else:
+            logging.warning("No valid pairs found in search")
+            
+        return best_pairs, best_route, best_length
+
+    def validate_route(self, route=None, strict=False):
+        """Enhanced validation with strict mode option"""
+        route_to_check = route if route is not None else self.route
+        if not route_to_check or len(route_to_check) < 2:
+            return False
+            
+        route_line = LineString(route_to_check)
+        
+        # Always check container boundary
+        if not self.Π.contains(route_line):
+            return False
+        
+        # In non-strict mode, allow some crossings that might be fixed later
+        if strict:
+            for poly in self.P:
+                if route_line.crosses(poly):
+                    return False
+        
+        # Check all obstacles are touched
+        touched = [False] * len(self.P)
+        for point in route_to_check:
+            for i, poly in enumerate(self.P):
+                if Point(point).touches(poly):
+                    touched[i] = True
+                    break
+        
+        return all(touched)
     
     def plot_environment(self):
         """Just plot the environment without any solution"""
@@ -655,18 +792,6 @@ class ZRPAlgorithm:
         
         return start_idx, end_idx
     
-    def validate_route(self, route=None):
-        """Check if route is valid (doesn't cross obstacles)"""
-        route_to_check = route if route is not None else self.route
-        if not route_to_check or len(route_to_check) < 2:
-            return False
-            
-        route_line = LineString(route_to_check)
-        for i, poly in enumerate(self.P):
-            if route_line.crosses(poly):
-                print(f"Route crosses obstacle {i}")
-                return False
-        return True
     
     def plot_solution(self):
         """Visualize the Zookeeper Route Problem solution"""

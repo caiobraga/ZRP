@@ -1,0 +1,35 @@
+2025-06-13 16:36:40,243 - INFO - ===== Starting Route Optimization =====
+2025-06-13 16:36:40,244 - INFO - Parameters: max_combinations=200, max_iterations=30
+2025-06-13 16:36:40,245 - INFO - Phase 1: Trying calculated ZRP pairs...
+2025-06-13 16:36:40,260 - INFO - Calculated 5 initial touching point pairs
+2025-06-13 16:36:40,263 - INFO - Initial route length: 37.28
+2025-06-13 16:36:40,266 - INFO - Success! Initial route is valid
+2025-06-13 16:36:40,266 - INFO - Phase 2: Starting optimized search...
+2025-06-13 16:36:40,269 - INFO - Searching for optimal ZRP pairs (max 200 combinations)
+2025-06-13 16:36:40,270 - INFO - Evaluating up to 200 combinations across 5 obstacles
+2025-06-13 16:36:41,512 - INFO - Progress: 1% (2/200)
+2025-06-13 16:36:42,618 - INFO - Progress: 2% (4/200)
+2025-06-13 16:36:43,587 - INFO - Progress: 3% (6/200)
+2025-06-13 16:36:44,554 - INFO - Progress: 4% (8/200)
+2025-06-13 16:36:45,501 - INFO - Progress: 5% (10/200)
+2025-06-13 16:36:46,735 - INFO - Progress: 6% (12/200)
+2025-06-13 16:36:47,722 - INFO - Progress: 7% (14/200)
+2025-06-13 16:36:49,042 - INFO - Progress: 8% (16/200)
+2025-06-13 16:36:50,043 - INFO - Progress: 9% (18/200)
+2025-06-13 16:36:51,165 - INFO - Progress: 10% (20/200)
+2025-06-13 16:36:52,626 - INFO - Progress: 11% (22/200)
+2025-06-13 16:36:53,884 - INFO - Progress: 12% (24/200)
+2025-06-13 16:36:54,836 - INFO - Progress: 13% (26/200)
+2025-06-13 16:36:55,788 - INFO - Progress: 14% (28/200)
+2025-06-13 16:36:57,191 - INFO - Progress: 15% (30/200)
+2025-06-13 16:36:58,304 - INFO - Progress: 16% (32/200)
+2025-06-13 16:36:58,787 - INFO - Best solution found after 32 evaluations
+2025-06-13 16:36:58,787 - INFO - Best length: 35.93
+2025-06-13 16:36:58,788 - INFO - Phase 3: Route refinement...
+2025-06-13 16:36:58,788 - INFO - Best route found with length: 35.93
+2025-06-13 16:36:58,788 - INFO - 
+Optimization pass 1/30
+2025-06-13 16:36:58,915 - INFO - No improvement found in this pass
+2025-06-13 16:36:58,916 - INFO - Final optimized route length: 35.93
+2025-06-13 16:36:58,916 - INFO - Route validation checks:
+2025-06-13 16:36:58,918 - INFO - All validation checks passed

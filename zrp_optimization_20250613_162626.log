@@ -1,0 +1,148 @@
+2025-06-13 16:26:33,034 - INFO - ===== Starting Route Optimization =====
+2025-06-13 16:26:33,036 - INFO - Parameters: max_combinations=200, max_iterations=30
+2025-06-13 16:26:33,036 - INFO - Phase 1: Trying calculated ZRP pairs...
+2025-06-13 16:26:33,082 - INFO - Calculated 5 initial touching point pairs
+2025-06-13 16:26:33,145 - INFO - Initial route length: 44.32
+2025-06-13 16:26:33,156 - INFO - Success! Initial route is valid
+2025-06-13 16:26:33,158 - INFO - Phase 2: Starting optimized search...
+2025-06-13 16:26:33,164 - INFO - Searching for optimal ZRP pairs (max 200 combinations)
+2025-06-13 16:26:33,165 - INFO - Evaluating up to 200 combinations across 5 obstacles
+2025-06-13 16:26:33,180 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,182 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,184 - ERROR - Route crosses enclosure 2
+2025-06-13 16:26:33,198 - ERROR - Route validation failed
+2025-06-13 16:26:33,199 - INFO - Progress: 1% (2/200)
+2025-06-13 16:26:33,214 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,216 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,217 - ERROR - Route crosses enclosure 2
+2025-06-13 16:26:33,228 - ERROR - Route validation failed
+2025-06-13 16:26:33,246 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,248 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,253 - ERROR - Route validation failed
+2025-06-13 16:26:33,268 - INFO - Progress: 2% (4/200)
+2025-06-13 16:26:33,294 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,297 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,301 - ERROR - Route validation failed
+2025-06-13 16:26:33,316 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,317 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,318 - ERROR - Route crosses enclosure 2
+2025-06-13 16:26:33,329 - ERROR - Route validation failed
+2025-06-13 16:26:33,330 - INFO - Progress: 3% (6/200)
+2025-06-13 16:26:33,344 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,346 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,348 - ERROR - Route crosses enclosure 2
+2025-06-13 16:26:33,353 - ERROR - Route validation failed
+2025-06-13 16:26:33,369 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,370 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,380 - ERROR - Route crosses enclosure 2
+2025-06-13 16:26:33,386 - ERROR - Route validation failed
+2025-06-13 16:26:33,388 - INFO - Progress: 4% (8/200)
+2025-06-13 16:26:33,404 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,414 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,415 - ERROR - Route crosses enclosure 2
+2025-06-13 16:26:33,418 - ERROR - Route validation failed
+2025-06-13 16:26:33,431 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,432 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,433 - ERROR - Route crosses enclosure 2
+2025-06-13 16:26:33,445 - ERROR - Route validation failed
+2025-06-13 16:26:33,446 - INFO - Progress: 5% (10/200)
+2025-06-13 16:26:33,451 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,452 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,454 - ERROR - Route crosses enclosure 2
+2025-06-13 16:26:33,468 - ERROR - Route validation failed
+2025-06-13 16:26:33,483 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,485 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,494 - ERROR - Route validation failed
+2025-06-13 16:26:33,495 - INFO - Progress: 6% (12/200)
+2025-06-13 16:26:33,500 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,501 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,503 - ERROR - Route validation failed
+2025-06-13 16:26:33,515 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,516 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,517 - ERROR - Route crosses enclosure 2
+2025-06-13 16:26:33,526 - ERROR - Route validation failed
+2025-06-13 16:26:33,528 - INFO - Progress: 7% (14/200)
+2025-06-13 16:26:33,536 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,537 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,545 - ERROR - Route crosses enclosure 2
+2025-06-13 16:26:33,550 - ERROR - Route validation failed
+2025-06-13 16:26:33,561 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,562 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,563 - ERROR - Route crosses enclosure 2
+2025-06-13 16:26:33,564 - ERROR - Route crosses enclosure 3
+2025-06-13 16:26:33,569 - ERROR - Route validation failed
+2025-06-13 16:26:33,570 - INFO - Progress: 8% (16/200)
+2025-06-13 16:26:33,577 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,578 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,579 - ERROR - Route crosses enclosure 2
+2025-06-13 16:26:33,579 - ERROR - Route crosses enclosure 3
+2025-06-13 16:26:33,582 - ERROR - Route validation failed
+2025-06-13 16:26:33,591 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,592 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,595 - ERROR - Route validation failed
+2025-06-13 16:26:33,596 - INFO - Progress: 9% (18/200)
+2025-06-13 16:26:33,599 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,600 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,602 - ERROR - Route validation failed
+2025-06-13 16:26:33,610 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,611 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,614 - ERROR - Route validation failed
+2025-06-13 16:26:33,614 - INFO - Progress: 10% (20/200)
+2025-06-13 16:26:33,618 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,618 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,621 - ERROR - Route validation failed
+2025-06-13 16:26:33,627 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,628 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,628 - ERROR - Route crosses enclosure 2
+2025-06-13 16:26:33,631 - ERROR - Route validation failed
+2025-06-13 16:26:33,631 - INFO - Progress: 11% (22/200)
+2025-06-13 16:26:33,634 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,635 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,636 - ERROR - Route crosses enclosure 2
+2025-06-13 16:26:33,638 - ERROR - Route validation failed
+2025-06-13 16:26:33,645 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,646 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,646 - ERROR - Route crosses enclosure 2
+2025-06-13 16:26:33,648 - ERROR - Route validation failed
+2025-06-13 16:26:33,648 - INFO - Progress: 12% (24/200)
+2025-06-13 16:26:33,651 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,653 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,653 - ERROR - Route crosses enclosure 2
+2025-06-13 16:26:33,659 - ERROR - Route validation failed
+2025-06-13 16:26:33,664 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,664 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,668 - ERROR - Route validation failed
+2025-06-13 16:26:33,668 - INFO - Progress: 13% (26/200)
+2025-06-13 16:26:33,676 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,677 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,681 - ERROR - Route validation failed
+2025-06-13 16:26:33,687 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,693 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,700 - ERROR - Route validation failed
+2025-06-13 16:26:33,701 - INFO - Progress: 14% (28/200)
+2025-06-13 16:26:33,713 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,714 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,719 - ERROR - Route validation failed
+2025-06-13 16:26:33,732 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,733 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,734 - ERROR - Route crosses enclosure 2
+2025-06-13 16:26:33,745 - ERROR - Route validation failed
+2025-06-13 16:26:33,746 - INFO - Progress: 15% (30/200)
+2025-06-13 16:26:33,752 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,753 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,757 - ERROR - Route crosses enclosure 2
+2025-06-13 16:26:33,761 - ERROR - Route validation failed
+2025-06-13 16:26:33,767 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,768 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,769 - ERROR - Route crosses enclosure 2
+2025-06-13 16:26:33,776 - ERROR - Route crosses enclosure 3
+2025-06-13 16:26:33,782 - ERROR - Route validation failed
+2025-06-13 16:26:33,786 - INFO - Progress: 16% (32/200)
+2025-06-13 16:26:33,827 - ERROR - Route crosses enclosure 0
+2025-06-13 16:26:33,829 - ERROR - Route crosses enclosure 1
+2025-06-13 16:26:33,830 - ERROR - Route crosses enclosure 2
+2025-06-13 16:26:33,831 - ERROR - Route crosses enclosure 3
+2025-06-13 16:26:33,834 - ERROR - Route validation failed
+2025-06-13 16:26:33,835 - WARNING - No valid pairs found in search
+2025-06-13 16:26:33,836 - WARNING - No valid pairs found in optimized search - attempting repair
+2025-06-13 16:26:33,850 - INFO - Repair successful

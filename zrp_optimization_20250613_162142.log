@@ -1,0 +1,6 @@
+2025-06-13 16:21:45,402 - INFO - ===== Starting Route Optimization =====
+2025-06-13 16:21:45,403 - INFO - Parameters: max_combinations=200, max_iterations=30
+2025-06-13 16:21:45,403 - INFO - Phase 1: Trying calculated ZRP pairs...
+2025-06-13 16:21:45,433 - INFO - Calculated 5 initial touching point pairs
+2025-06-13 16:21:45,461 - INFO - Initial route length: 53.47
+2025-06-13 16:21:45,471 - INFO - Success! Initial route is valid
