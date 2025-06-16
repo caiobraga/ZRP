@@ -54,17 +54,20 @@ class ZRPAlgorithm:
                 return (x, y)
     
     def generate_all_candidate_points(self):
-        """Generate all potential entry points (vertices + edge midpoints) for each obstacle"""
         all_points = []
         for poly in self.P:
-            # Get all vertices and edge midpoints
-            vertices = list(poly.exterior.coords)[:-1]  # Exclude repeated closing point
+            vertices = list(poly.exterior.coords)[:-1]
             edges = list(zip(vertices, vertices[1:] + [vertices[0]]))
             edge_midpoints = [((e[0][0]+e[1][0])/2, (e[0][1]+e[1][1])/2) for e in edges]
-            
-            # All candidate points (vertices + midpoints)
-            all_points.append(vertices + edge_midpoints)
+
+            # NEW: Sample extra points along the perimeter
+            sampled_points = []
+            for dist in np.linspace(0, poly.exterior.length, 10):
+                sampled_points.append(poly.exterior.interpolate(dist).coords[0])
+
+            all_points.append(vertices + edge_midpoints + sampled_points)
         return all_points
+
     
     def evaluate_route(self, zrp_pairs):
         """Evaluate a complete route using given entry points (same entry and exit)"""
@@ -200,7 +203,6 @@ class ZRPAlgorithm:
             point_vec = np.array(point) - poly_center
             point_vec = point_vec / (np.linalg.norm(point_vec) + 1e-8)
             
-            # Score based on direction alignment and distance
             score = np.dot(point_vec, direction) + 0.3/(1 + Point(point).distance(Point(target_center)))
             if score > max_score:
                 max_score = score
@@ -212,20 +214,16 @@ class ZRPAlgorithm:
         """Generate interesting star-shaped polygons"""
         angles = np.linspace(0, 2*np.pi, points, endpoint=False)
         
-        # Add irregularity
         angles += np.random.uniform(-irregularity, irregularity, points)
         
-        # Generate radii
         radii = radius * (1 + np.random.uniform(-0.3, 0.3, points))
         
-        # Calculate vertices
         vertices = []
         for angle, r in zip(angles, radii):
             x = center[0] + r * np.cos(angle)
             y = center[1] + r * np.sin(angle)
             vertices.append((x, y))
         
-        # Ensure convex hull to avoid self-intersections
         hull = ConvexHull(vertices)
         ordered_vertices = [vertices[i] for i in hull.vertices]
         
@@ -254,7 +252,6 @@ class ZRPAlgorithm:
             point_vec = np.array(point.coords[0]) - poly_center
             point_vec = point_vec / (np.linalg.norm(point_vec) + 1e-8)
             
-            # Score based on direction alignment and distance
             score = np.dot(point_vec, direction) + 0.3/(1 + Point(point).distance(Point(target_center)))
             if score > max_score:
                 max_score = score
@@ -269,7 +266,6 @@ class ZRPAlgorithm:
 
     def extended_shortest_path(self, p1, p2, obstacles):
         """Improved path finding that better navigates around obstacles"""
-        # First try direct path
         direct_line = LineString([p1, p2])
         valid = True
         for obs in obstacles:
@@ -279,29 +275,23 @@ class ZRPAlgorithm:
         if valid:
             return [p1, p2]
         
-        # If direct path crosses obstacles, find path around them
         path = [p1]
         remaining_obstacles = [obs for obs in obstacles if direct_line.crosses(obs)]
         
-        # Sort obstacles by distance from p1
         remaining_obstacles.sort(key=lambda obs: Point(p1).distance(obs))
         
         for obs in remaining_obstacles:
-            # Find closest points on obstacle to current position and target
             boundary = obs.exterior
             closest_to_current = boundary.interpolate(boundary.project(Point(path[-1])))
             closest_to_target = boundary.interpolate(boundary.project(Point(p2)))
             
-            # Get all boundary points
             hull_points = list(obs.exterior.coords)
             
-            # Find indices of closest points
             idx1 = min(range(len(hull_points)),
                     key=lambda i: Point(hull_points[i]).distance(closest_to_current))
             idx2 = min(range(len(hull_points)),
                     key=lambda i: Point(hull_points[i]).distance(closest_to_target))
             
-            # Add path around obstacle
             if idx1 < idx2:
                 path.extend(hull_points[idx1:idx2+1])
             else:
@@ -323,23 +313,19 @@ class ZRPAlgorithm:
         if not P2_shrunk.is_valid:
             return None
 
-        # Calculate paths avoiding other obstacles
         V12 = self.extended_shortest_path(p12, p21, [p for p in self.P if p not in [P1, P2]])
         V23 = self.extended_shortest_path(p22, p31, [p for p in self.P if p not in [P2, P3]])
         
         if len(V12) < 2 or len(V23) < 2:
             return None
 
-        # Find entry and exit points on shrunk polygon
         q1 = self.find_intersection(V12, P2_shrunk, first=True)
         q3 = self.find_intersection(V23, P2_shrunk, first=False)
         
         if q1 is None or q3 is None:
             return None
 
-        # Check if direct connection crosses shrunk polygon
         if LineString([q1, q3]).crosses(P2_shrunk):
-            # Find path around P2_shrunk
             hull_points = list(P2_shrunk.exterior.coords)
             
             t1 = self.find_tangent(q1, P2_shrunk)
@@ -415,7 +401,6 @@ class ZRPAlgorithm:
             current_point = new_route[-1]
             next_point = self.route[i]
             
-            # Find path avoiding ALL obstacles
             repaired_segment = self.extended_shortest_path(current_point, next_point, self.P)
             
             if len(repaired_segment) > 1:
@@ -431,7 +416,6 @@ class ZRPAlgorithm:
             logging.info("===== Starting Route Optimization =====")
             logging.info(f"Parameters: max_combinations={max_combinations}, max_iterations={max_iterations}")
             
-            # Phase 1: Try with calculated zrp pairs
             logging.info("Phase 1: Trying calculated ZRP pairs...")
             calculated_pairs = self.calculate_zrp_pairs()
             logging.info(f"Calculated {len(calculated_pairs)} initial touching point pairs")
@@ -445,13 +429,11 @@ class ZRPAlgorithm:
                     self.best_route = route
                     self.best_length = length
                     logging.info("Success! Initial route is valid")
-                    #return route
                 else:
                     logging.warning("Initial route failed validation")
             else:
                 logging.warning("Failed to generate initial route")
 
-            # Phase 2: Optimized search
             logging.info("Phase 2: Starting optimized search...")
             best_pairs, best_route, best_length = self.find_optimal_zrp_pairs(max_combinations)
             
@@ -465,7 +447,6 @@ class ZRPAlgorithm:
                     logging.error("Repair failed")
                     return None
             
-            # Phase 3: Refinement
             logging.info("Phase 3: Route refinement...")
             self.best_zrp_pairs = best_pairs
             self.route = best_route
@@ -474,7 +455,6 @@ class ZRPAlgorithm:
             
             logging.info(f"Best route found with length: {best_length:.2f}")
             
-            # Additional optimization passes
             improvement = float('inf')
             iteration = 0
 
@@ -482,7 +462,6 @@ class ZRPAlgorithm:
                 iteration += 1
                 logging.info(f"\nOptimization pass {iteration}/{max_iterations}")
                 
-                # Try local improvements
                 new_pairs, new_length = self.optimize_zrp_pairs_sa(
                     initial_temp=1000/(iteration+1),
                     cooling_rate=0.95,
@@ -495,10 +474,9 @@ class ZRPAlgorithm:
                     best_pairs = new_pairs
                     best_route, _ = self.evaluate_route(best_pairs)
                     
-                    logging.info(f"Improved route length to {best_length:.2f} (Δ={improvement:.2f})")
+                    logging.info(f"Improved route length to {best_length:.2f} (Delta={improvement:.2f})")
                     
-                    # Use non-strict validation during optimization
-                    if self.validate_route(best_route, strict=False):
+                    if self.validate_route(best_route, strict=True):
                         self.best_zrp_pairs = best_pairs
                         self.route = best_route
                         self.best_route = best_route
@@ -518,7 +496,6 @@ class ZRPAlgorithm:
                 logging.info(f"Final optimized route length: {final_length:.2f}")
                 logging.info("Route validation checks:")
                 
-                # Detailed validation logging
                 if not self.validate_route(self.best_route):
                     logging.error("Final route validation failed!")
                 else:
@@ -536,23 +513,19 @@ class ZRPAlgorithm:
         temp = initial_temp
         
         for i in range(iterations):
-            # Create neighbor solution by perturbing one point
             new_pairs = current_pairs.copy()
             idx = random.randint(0, len(self.P)-1)
             candidates = self.all_candidate_points[idx]
             new_point = random.choice(candidates)
-            new_pairs[idx] = (new_point, new_point)  # Using same entry/exit for simplicity
+            new_pairs[idx] = (new_point, new_point)  
             
-            # Evaluate new solution
             new_route, new_length = self.evaluate_route(new_pairs)
             
-            # Acceptance criteria
             if new_route and (new_length < current_length or 
                             random.random() < np.exp((current_length - new_length)/temp)):
                 current_pairs = new_pairs
                 current_length = new_length
                 
-            # Cool down
             temp *= cooling_rate
             
         return current_pairs, current_length
@@ -568,7 +541,6 @@ class ZRPAlgorithm:
         
         logging.info(f"Evaluating up to {max_combinations} combinations across {num_obstacles} obstacles")
         
-        # Generate candidate points
         candidate_indices = []
         for i in range(num_obstacles):
             num_candidates = len(self.all_candidate_points[i])
@@ -576,7 +548,6 @@ class ZRPAlgorithm:
             candidate_indices.append(list(range(min(max_per_obstacle, num_candidates))))
             logging.debug(f"Obstacle {i}: evaluating {len(candidate_indices[-1])}/{num_candidates} points")
         
-        # Evaluate combinations
         evaluated = 0
         best_progress = 0
         
@@ -590,9 +561,7 @@ class ZRPAlgorithm:
                 best_progress = progress
                 logging.info(f"Progress: {progress}% ({evaluated}/{max_combinations})")
             
-            # Create pairs
             for _ in range(max_combinations):
-                # Generate random ZRP pairs
                 zrp_pairs = []
                 for i in range(len(self.P)):
                     candidates = self.all_candidate_points[i]
@@ -603,7 +572,7 @@ class ZRPAlgorithm:
                 
                 if route and length < best_length:
                     self.route = route
-                    if self.repair_route():  # Try to repair first
+                    if self.repair_route():  
                         repaired_length = LineString(self.route).length
                         if repaired_length < best_length:
                             best_length = repaired_length
@@ -620,44 +589,44 @@ class ZRPAlgorithm:
             
         return best_pairs, best_route, best_length
 
-    def validate_route(self, route=None, strict=False):
-        """Enhanced validation with strict mode option"""
+    def validate_route(self, route=None, strict=True):
+        """Route validation always checks crossing, even if strict=False"""
         route_to_check = route if route is not None else self.route
         if not route_to_check or len(route_to_check) < 2:
             return False
-            
+
         route_line = LineString(route_to_check)
-        
-        # Always check container boundary
+
+        # Check if the route leaves the zoo boundary
         if not self.Π.contains(route_line):
+            print("Route leaves zoo boundary")
             return False
-        
-        # In non-strict mode, allow some crossings that might be fixed later
-        if strict:
-            for poly in self.P:
-                if route_line.crosses(poly):
-                    return False
-        
-        # Check all obstacles are touched
+
+        # Always check for crossings (even when strict=False)
+        for i, poly in enumerate(self.P):
+            if route_line.crosses(poly) or route_line.within(poly) or route_line.intersects(poly):
+                print(f"Route crosses or passes through obstacle {i}")
+                return False
+
+        # Optionally: Also require touching all obstacles
         touched = [False] * len(self.P)
         for point in route_to_check:
             for i, poly in enumerate(self.P):
                 if Point(point).touches(poly):
                     touched[i] = True
                     break
-        
+
         return all(touched)
+
     
     def plot_environment(self):
         """Just plot the environment without any solution"""
         plt.figure(figsize=(12, 8))
         
-        # Plot container
         x, y = self.Π.exterior.xy
         plt.plot(x, y, 'b-', linewidth=3, label='Zoo Boundary')
         plt.fill(x, y, 'b', alpha=0.1)
         
-        # Plot obstacles
         for i, poly in enumerate(self.P):
             x, y = poly.exterior.xy
             plt.fill(x, y, 'r', alpha=0.3)
@@ -665,7 +634,6 @@ class ZRPAlgorithm:
             plt.text(poly.centroid.x, poly.centroid.y, f'Enclosure {i}', 
                     ha='center', va='center', color='darkred')
         
-        # Plot start point
         plt.plot(self.start_point[0], self.start_point[1], 'k*', 
                 markersize=15, markeredgecolor='w', label='Zookeeper Station')
         
@@ -679,12 +647,10 @@ class ZRPAlgorithm:
         """Visualize the Zookeeper Route Problem solution"""
         plt.figure(figsize=(12, 8))
         
-        # Plot container (zoo)
         x, y = self.Π.exterior.xy
         plt.plot(x, y, 'b-', linewidth=3, label='Zoo Boundary')
         plt.fill(x, y, 'b', alpha=0.1)
         
-        # Plot obstacles (animal enclosures)
         for i, poly in enumerate(self.P):
             x, y = poly.exterior.xy
             plt.fill(x, y, 'r', alpha=0.3)
@@ -692,13 +658,11 @@ class ZRPAlgorithm:
             plt.text(poly.centroid.x, poly.centroid.y, f'Enclosure {i}', 
                     ha='center', va='center', color='darkred')
         
-        # Plot candidate points (potential touching points)
         for i, points in enumerate(self.all_candidate_points):
             px, py = zip(*points)
             plt.plot(px, py, 'yo', markersize=6, alpha=0.5, 
                     label='Candidate Points' if i == 0 else "")
         
-        # Plot selected entry points (where zookeeper touches enclosures)
         if hasattr(self, 'best_zrp_pairs') and self.best_zrp_pairs:
             for i, (entry, exit_) in enumerate(self.best_zrp_pairs):
                 plt.plot(entry[0], entry[1], 'go', markersize=10, 
@@ -708,19 +672,15 @@ class ZRPAlgorithm:
                 plt.text(entry[0], entry[1], f'E{i}', ha='right', va='bottom')
                 plt.text(exit_[0], exit_[1], f'X{i}', ha='left', va='bottom')
         
-        # Plot start/end point (zookeeper's station)
         plt.plot(self.start_point[0], self.start_point[1], 'k*', 
                 markersize=15, markeredgecolor='w', label='Zookeeper Station')
         
-        # Plot the route if available
         if hasattr(self, 'route') and self.route and len(self.route) > 1:
             route_line = LineString(self.route)
             if self.validate_route():
-                # Draw valid route in green
                 route_x, route_y = zip(*self.route)
                 plt.plot(route_x, route_y, 'g-', linewidth=2, label='Zookeeper Route')
                 
-                # Add direction arrows
                 for i in range(0, len(self.route)-1, max(1, len(self.route)//10)):
                     dx = self.route[i+1][0] - self.route[i][0]
                     dy = self.route[i+1][1] - self.route[i][1]
@@ -730,7 +690,6 @@ class ZRPAlgorithm:
                 
                 plt.title(f'Valid Zookeeper Route - Length: {route_line.length:.2f}')
             else:
-                # Draw invalid route in red
                 route_x, route_y = zip(*self.route)
                 plt.plot(route_x, route_y, 'r-', linewidth=2, label='INVALID Route')
                 plt.title('INVALID ROUTE - Crosses Enclosures', color='red')
@@ -759,7 +718,6 @@ class ZRPAlgorithm:
                                                         [p for p in self.P if p not in [self.P[i], self.P[i+1]]])
                 self.route.extend(path_segment[1:])
         
-        # Close the loop
         if len(self.best_zrp_pairs) > 1:
             last_p2 = self.best_zrp_pairs[-1][1]
             first_p1 = self.best_zrp_pairs[0][0]
@@ -780,13 +738,11 @@ class ZRPAlgorithm:
         if len(segment) < 2:
             return None, None
             
-        # Find first point
         start_idx = next((i for i, p in enumerate(route) 
                          if np.allclose(p, segment[0], atol=1e-2)), None)
         if start_idx is None:
             return None, None
             
-        # Find last point after start_idx
         end_idx = next((i for i, p in enumerate(route[start_idx:], start_idx)
                        if np.allclose(p, segment[-1], atol=1e-2)), None)
         
@@ -797,12 +753,10 @@ class ZRPAlgorithm:
         """Visualize the Zookeeper Route Problem solution"""
         plt.figure(figsize=(12, 8))
         
-        # Plot container (zoo boundary)
         x, y = self.Π.exterior.xy
         plt.plot(x, y, 'b-', linewidth=3, label='Zoo Boundary')
         plt.fill(x, y, 'b', alpha=0.1)
         
-        # Plot obstacles (animal enclosures)
         for i, poly in enumerate(self.P):
             x, y = poly.exterior.xy
             plt.fill(x, y, 'r', alpha=0.3)
@@ -810,13 +764,11 @@ class ZRPAlgorithm:
             plt.text(poly.centroid.x, poly.centroid.y, f'Enclosure {i}', 
                     ha='center', va='center', color='darkred')
         
-        # Plot candidate points (potential touching points)
         for i, points in enumerate(self.all_candidate_points):
             px, py = zip(*points)
             plt.plot(px, py, 'yo', markersize=6, alpha=0.5, 
                     label='Candidate Points' if i == 0 else "")
         
-        # Plot selected entry/exit points if they exist
         if hasattr(self, 'best_zrp_pairs') and self.best_zrp_pairs:
             for i, (entry, exit_) in enumerate(self.best_zrp_pairs):
                 plt.plot(entry[0], entry[1], 'go', markersize=10, 
@@ -826,18 +778,14 @@ class ZRPAlgorithm:
                 plt.text(entry[0], entry[1], f'E{i}', ha='right', va='bottom')
                 plt.text(exit_[0], exit_[1], f'X{i}', ha='left', va='bottom')
         
-        # Plot start/end point (zookeeper's station)
         plt.plot(self.start_point[0], self.start_point[1], 'k*', 
                 markersize=15, markeredgecolor='w', label='Zookeeper Station')
         
-        # Plot the route if available
         if hasattr(self, 'route') and self.route and len(self.route) > 1:
             if self.validate_route():
-                # Valid route (green)
                 route_x, route_y = zip(*self.route)
                 plt.plot(route_x, route_y, 'g-', linewidth=2, label='Zookeeper Route')
                 
-                # Add direction arrows
                 for i in range(0, len(self.route)-1, max(1, len(self.route)//10)):
                     dx = self.route[i+1][0] - self.route[i][0]
                     dy = self.route[i+1][1] - self.route[i][1]
@@ -847,7 +795,6 @@ class ZRPAlgorithm:
                 
                 plt.title(f'Valid Zookeeper Route - Length: {LineString(self.route).length:.2f}')
             else:
-                # Invalid route (red)
                 route_x, route_y = zip(*self.route)
                 plt.plot(route_x, route_y, 'r-', linewidth=2, label='INVALID Route')
                 plt.title('INVALID ROUTE - Crosses Enclosures', color='red')
@@ -866,22 +813,17 @@ def create_interesting_environment():
         """Create container with interesting obstacle shapes"""
         container = Polygon([(0, 0), (20, 0), (20, 15), (0, 15)])
         
-        # Generate interesting obstacle shapes
         obstacles = []
         
-        # Star-shaped polygons
         obstacles.append(Polygon([(3, 3), (5, 2), (7, 3), (6, 5), (7, 7), (5, 6), (3, 7), (4, 5)]))
         obstacles.append(Polygon([(12, 4), (14, 2), (16, 4), (17, 6), (15, 7), (13, 6), (12, 5)]))
         
-        # L-shaped polygon
         obstacles.append(Polygon([(5, 10), (8, 10), (8, 12), (10, 12), (10, 8), (5, 8)]))
         
-        # Plus-shaped polygon
         obstacles.append(Polygon([(14, 9), (16, 9), (16, 11), (18, 11), (18, 13), 
                                 (16, 13), (16, 15), (14, 15), (14, 13), (12, 13), 
                                 (12, 11), (14, 11)]))
         
-        # Random convex polygon
         random_points = [(2 + random.random()*3, 10 + random.random()*3) for _ in range(6)]
         hull = ConvexHull(random_points)
         obstacles.append(Polygon([random_points[i] for i in hull.vertices]))
@@ -890,22 +832,31 @@ def create_interesting_environment():
 
 if __name__ == "__main__":
     container, obstacles = create_interesting_environment()
-    zrp = ZRPAlgorithm(container, obstacles, epsilon2=0.1, epsilon3=0.1)
-    
-    # First visualize the environment
+
+    # Função para escolher um ponto inicial válido
+    def get_valid_start_point(container, obstacles):
+        min_x, min_y, max_x, max_y = container.bounds
+        while True:
+            x = random.uniform(min_x, max_x)
+            y = random.uniform(min_y, max_y)
+            point = Point(x, y)
+            if container.contains(point) and all(not obs.contains(point) for obs in obstacles):
+                return (x, y)
+
+    # Exemplo de geração de um ponto inicial válido
+    user_start_point = get_valid_start_point(container, obstacles)
+    print(f"Usando ponto inicial: {user_start_point}")
+
+    # Instanciar o ZRPAlgorithm com o ponto inicial
+    zrp = ZRPAlgorithm(container, obstacles, start_point=user_start_point, epsilon2=0.1, epsilon3=0.1)
+
     zrp.plot_environment()
-    
-    # Try to solve
-    final_route = zrp.algorithm5(max_combinations=200)  # Increased from 100
-    
+
+    final_route = zrp.algorithm5(max_combinations=200)
+
     if final_route:
         print(f"Success! Route length: {LineString(final_route).length:.2f}")
         zrp.plot_solution()
     else:
-        print("Failed to find valid route - possible issues:")
-        print("1. Obstacles may be too close together")
-        print("2. Start point may be in a difficult position")
-        print("3. Epsilon values may need adjustment")
-        
-        # Plot whatever we have
+        print("Failed to find valid route.")
         zrp.plot_solution()
