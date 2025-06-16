@@ -9,6 +9,7 @@ import heapq
 import logging
 from math import sqrt
 from itertools import combinations
+from collections import defaultdict
 
 logging.basicConfig(
     level=logging.DEBUG, 
@@ -28,27 +29,27 @@ class VisibilityGraphAStar:
         self.build_visibility_graph()
         
     def _connect_point(self, point):
-            """Robust point connection to visibility graph"""
-            if point not in self.visibility_graph:
-                self.visibility_graph[point] = {}
-                
-                connections = 0
-                for existing_point in list(self.visibility_graph.keys()):
-                    if existing_point == point:
-                        continue
-                        
-                    line = LineString([point, existing_point])
-                    if (not any(line.crosses(obs) for obs in self.obstacles) and 
-                        line.within(self.container)):
-                        dist = sqrt((existing_point[0]-point[0])**2 + (existing_point[1]-point[1])**2)
-                        self.visibility_graph[point][existing_point] = dist
-                        self.visibility_graph[existing_point][point] = dist
-                        connections += 1
-                
-                logger.debug(f"Connected new point {point} to {connections} existing points")
-                return connections > 0  
+        """Robust point connection to visibility graph"""
+        if point not in self.visibility_graph:
+            self.visibility_graph[point] = {}
             
-            return True 
+            connections = 0
+            for existing_point in list(self.visibility_graph.keys()):
+                if existing_point == point:
+                    continue
+                    
+                line = LineString([point, existing_point])
+                if (not any(line.crosses(obs) for obs in self.obstacles) and 
+                    line.within(self.container)):
+                    dist = sqrt((existing_point[0]-point[0])**2 + (existing_point[1]-point[1])**2)
+                    self.visibility_graph[point][existing_point] = dist
+                    self.visibility_graph[existing_point][point] = dist
+                    connections += 1
+            
+            logger.debug(f"Connected new point {point} to {connections} existing points")
+            return connections > 0  
+        
+        return True 
 
     def build_visibility_graph(self):
         """Build a visibility graph of all obstacle vertices with logging"""
@@ -168,15 +169,18 @@ class VisibilityGraphAStar:
         return path
 
 class OptimizedZRPTabuVisGraph:
-    def __init__(self, container, obstacles, start_point, timeout=300):
+    def __init__(self, container, obstacles, start_point, food_requirements, capacity, timeout=300):
         self.container = container
         self.obstacles = obstacles
         self.start_point = start_point
+        self.food_requirements = food_requirements
+        self.capacity = capacity
         self.timeout = timeout
         self.start_time = time.time()
         self.best_route = None
         self.best_length = float('inf')
         self.best_order = None
+        self.best_trips = None
         
         logger.info("Initializing visibility graph...")
         self.vis_graph = VisibilityGraphAStar(container, obstacles)
@@ -195,39 +199,84 @@ class OptimizedZRPTabuVisGraph:
             if any(o.contains(centroid) for o in obstacles if o != obs):
                 logger.warning(f"Obstacle {i} centroid is inside another obstacle!")
     
-    def build_route_avoiding_obstacles(self, obstacle_order):
-        """Build route with robust point handling"""
-        current_pos = tuple(float(x) for x in self.start_point) 
-        complete_route = [current_pos]
+    def build_route_with_capacity(self, obstacle_order):
+        """Build route with capacity constraints and multiple trips"""
+        current_pos = tuple(float(x) for x in self.start_point)
+        complete_route = []
+        current_load = self.capacity
         touched = set()
+        trips = []
+        current_trip = [current_pos]
+        total_distance = 0
+        
+        # First check if any single obstacle exceeds capacity
+        for obs_idx in obstacle_order:
+            if self.food_requirements[obs_idx] > self.capacity:
+                logger.error(f"Obstacle {obs_idx} requires {self.food_requirements[obs_idx]}kg but capacity is only {self.capacity}kg")
+                return None, set(), float('inf'), []
+        
+        # Split obstacle order into trips based on capacity
+        trip_plans = []
+        current_trip_plan = []
+        current_trip_load = 0
         
         for obs_idx in obstacle_order:
-            if time.time() - self.start_time > self.timeout * 0.9:
-                break
+            food_needed = self.food_requirements[obs_idx]
+            
+            if current_trip_load + food_needed > self.capacity:
+                trip_plans.append(current_trip_plan)
+                current_trip_plan = [obs_idx]
+                current_trip_load = food_needed
+            else:
+                current_trip_plan.append(obs_idx)
+                current_trip_load += food_needed
+        
+        if current_trip_plan:
+            trip_plans.append(current_trip_plan)
+        
+        logger.debug(f"Generated trip plans: {trip_plans}")
+        
+        # Execute each trip plan
+        for trip_idx, trip_plan in enumerate(trip_plans):
+            current_trip = [current_pos]
+            trip_food = sum(self.food_requirements[i] for i in trip_plan)
+            logger.info(f"Starting trip {trip_idx+1} with {len(trip_plan)} obstacles ({trip_food}kg/{self.capacity}kg)")
+            
+            for obs_idx in trip_plan:
+                obstacle = self.obstacles[obs_idx]
+                target = tuple(float(x) for x in obstacle.exterior.coords[0])  # First vertex
                 
-            # Get target point from obstacle boundary
-            obstacle = self.obstacles[obs_idx]
-            target = tuple(float(x) for x in obstacle.exterior.coords[0])  # First vertex
-            
-            path = self.vis_graph.find_path(current_pos, target)
-            
-            if path:
-                complete_route.extend(path[1:])
+                path = self.vis_graph.find_path(current_pos, target)
+                if not path:
+                    logger.warning(f"No path found to obstacle {obs_idx}")
+                    return None, set(), float('inf'), []
+                
+                current_trip.extend(path[1:])
                 current_pos = path[-1]
                 touched.add(obs_idx)
+                total_distance += self.calculate_route_length(path)
+                logger.debug(f"Visited obstacle {obs_idx} (food: {self.food_requirements[obs_idx]}kg)")
+            
+            # Return to start after each trip
+            return_path = self.vis_graph.find_path(current_pos, self.start_point)
+            if not return_path:
+                logger.warning("No return path found to start point")
+                return None, set(), float('inf'), []
+            
+            current_trip.extend(return_path[1:])
+            total_distance += self.calculate_route_length(return_path)
+            current_pos = self.start_point
+            trips.append((current_trip, set(trip_plan), trip_food))
         
-        if len(touched) == len(obstacle_order):
-            return_path = self.vis_graph.find_path(
-                current_pos, 
-                tuple(float(x) for x in self.start_point) 
-            )
-            if return_path:
-                complete_route.extend(return_path[1:])
+        # Combine all trips into one complete route
+        complete_route = []
+        for trip, _, _ in trips:
+            complete_route.extend(trip)
         
-        return complete_route, touched
+        return complete_route, touched, total_distance, trips
     
     def tabu_search(self, max_iterations=200, tabu_size=50, max_neighbors=10):
-        logger.info("\n===== STARTING TABU SEARCH =====")
+        logger.info("\n===== STARTING TABU SEARCH WITH CAPACITY CONSTRAINTS =====")
         num_obs = len(self.obstacles)
         current_order = list(range(num_obs))
         random.shuffle(current_order)
@@ -242,19 +291,21 @@ class OptimizedZRPTabuVisGraph:
                 iteration += 1
                 logger.info(f"\n=== Iteration {iteration} ===")
                 
-                all_swaps = [(i, j) for i in range(num_obs) for j in range(i+1, num_obs)]
-                random.shuffle(all_swaps)
-                neighbors = all_swaps[:max_neighbors]
-                logger.debug(f"Generated {len(neighbors)} neighbor solutions")
+                # Generate neighbors by swapping two random obstacles
+                neighbors = []
+                for _ in range(max_neighbors):
+                    i, j = random.sample(range(num_obs), 2)
+                    new_order = current_order.copy()
+                    new_order[i], new_order[j] = new_order[j], new_order[i]
+                    neighbors.append(new_order)
                 
                 best_neighbor = None
                 best_neighbor_route = None
                 best_neighbor_length = float('inf')
+                best_neighbor_trips = None
                 valid_neighbors = 0
 
-                for i, j in neighbors:
-                    new_order = current_order.copy()
-                    new_order[i], new_order[j] = new_order[j], new_order[i]
+                for new_order in neighbors:
                     state_key = tuple(new_order)
                     
                     if state_key in tabu_list:
@@ -262,16 +313,16 @@ class OptimizedZRPTabuVisGraph:
                         continue
                         
                     logger.debug(f"Evaluating neighbor: {new_order}")
-                    route, touched = self.build_route_avoiding_obstacles(new_order)
+                    route, touched, length, trips = self.build_route_with_capacity(new_order)
                     
                     if route and len(touched) == num_obs:
-                        length = self.calculate_route_length(route)
                         valid_neighbors += 1
                         
                         if length < best_neighbor_length:
                             best_neighbor = new_order
                             best_neighbor_route = route
                             best_neighbor_length = length
+                            best_neighbor_trips = trips
                             logger.debug(f"New best neighbor found (length: {length:.2f})")
                 
                 logger.info(f"Evaluated {valid_neighbors} valid neighbors this iteration")
@@ -287,6 +338,7 @@ class OptimizedZRPTabuVisGraph:
                         self.best_length = best_neighbor_length
                         self.best_route = best_neighbor_route
                         self.best_order = current_order
+                        self.best_trips = best_neighbor_trips
                 else:
                     logger.info("No improving neighbors found this iteration")
                 
@@ -301,6 +353,15 @@ class OptimizedZRPTabuVisGraph:
         logger.info("\n===== TABU SEARCH COMPLETE =====")
         logger.info(f"Best solution length: {self.best_length:.2f}")
         logger.info(f"Best solution order: {self.best_order}")
+        logger.info(f"Number of trips required: {len(self.best_trips) if self.best_trips else 0}")
+        
+        if self.best_trips:
+            for i, (_, obs_covered, trip_food) in enumerate(self.best_trips):
+                logger.info(f"Trip {i+1}:")
+                logger.info(f"  - Obstacles: {sorted(obs_covered)}")
+                logger.info(f"  - Total food: {trip_food}kg/{self.capacity}kg")
+                logger.info(f"  - Food per obstacle: {', '.join(f'{obs}:{self.food_requirements[obs]}kg' for obs in sorted(obs_covered))}")
+        
         return self.best_route
     
     def calculate_route_length(self, route):
@@ -309,7 +370,7 @@ class OptimizedZRPTabuVisGraph:
         return LineString(route).length
     
     def plot_solution(self):
-        if not self.best_route:
+        if not self.best_route or not self.best_trips:
             logger.error("No valid route to plot")
             return
             
@@ -319,28 +380,31 @@ class OptimizedZRPTabuVisGraph:
         x, y = self.container.exterior.xy
         plt.plot(x, y, 'b-', linewidth=3, label='Container')
         
-        # Plot obstacles
+        # Plot obstacles with food requirements
         for i, poly in enumerate(self.obstacles):
             x, y = poly.exterior.xy
             plt.fill(x, y, 'red', alpha=0.3)
-            # Plot obstacle numbers
+            # Plot obstacle numbers and food requirements
             centroid = poly.centroid
-            plt.text(centroid.x, centroid.y, str(i), 
-                    ha='center', va='center', color='black', fontsize=10)
+            plt.text(centroid.x, centroid.y, f"{i}\n({self.food_requirements[i]}kg)", 
+                    ha='center', va='center', color='black', fontsize=8)
         
-        # Plot route
-        rx, ry = zip(*self.best_route)
-        plt.plot(rx, ry, 'g-', linewidth=2, label='Route')
-        plt.scatter(rx, ry, color='green', s=20)
+        # Plot each trip with different colors
+        colors = plt.cm.rainbow(np.linspace(0, 1, len(self.best_trips)))
+        for idx, (trip_route, obs_covered, trip_food) in enumerate(self.best_trips):
+            rx, ry = zip(*trip_route)
+            plt.plot(rx, ry, '-', color=colors[idx], linewidth=2, 
+                    label=f'Trip {idx+1} ({trip_food}kg/{self.capacity}kg)')
+            plt.scatter(rx, ry, color=colors[idx], s=20)
         
         # Plot start point
         plt.scatter(self.start_point[0], self.start_point[1], 
-                  color='blue', s=100, marker='o', label='Start')
+                  color='blue', s=100, marker='o', label='Start/Refill')
         
         plt.legend()
         plt.axis('equal')
         plt.tight_layout()
-        plt.title(f"Best Solution (Length: {self.best_length:.2f})")
+        plt.title(f"Best Solution (Length: {self.best_length:.2f}, Trips: {len(self.best_trips)})")
         plt.show()
 
 def get_instance_path(filename):
@@ -377,13 +441,31 @@ if __name__ == "__main__":
         obstacles = [Polygon(obs['coordinates'][0]) for obs in data['obstacles']]
         start_point = tuple(data['start_point'])
         
-        logger.info(f"Loaded instance with {len(obstacles)} obstacles")
+        # Get food requirements and capacity
+        food_requirements = data['food_requirements']
+        capacity = data['capacity']
         
-        # Initialize solver with proper point validation
-        solver = OptimizedZRPTabuVisGraph(container, obstacles, start_point, timeout=300)
+        logger.info(f"Loaded instance with {len(obstacles)} obstacles")
+        logger.info(f"Food requirements: {food_requirements}")
+        logger.info(f"Zookeeper capacity: {capacity}kg")
+        
+        # Check if any obstacle exceeds capacity
+        for i, req in enumerate(food_requirements):
+            if req > capacity:
+                logger.warning(f"Obstacle {i} requires {req}kg which exceeds capacity of {capacity}kg")
+        
+        # Initialize solver with capacity constraints
+        solver = OptimizedZRPTabuVisGraph(
+            container, 
+            obstacles, 
+            start_point, 
+            food_requirements, 
+            capacity,
+            timeout=300
+        )
         
         # Run tabu search with progress reporting
-        logger.info("Starting path optimization...")
+        logger.info("Starting path optimization with capacity constraints...")
         best_route = solver.tabu_search(max_iterations=200, tabu_size=50, max_neighbors=10)
         
         if best_route:
